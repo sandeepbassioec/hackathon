@@ -39,7 +39,8 @@ export async function apiRequest(path, options = {}) {
     },
   });
   if (!res.ok) {
-    throw new Error(`Request to ${path} failed with ${res.status}`);
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error || `Request to ${path} failed with ${res.status}`);
   }
   return res.json();
 }
