@@ -3,5 +3,6 @@
 /backend/.cargo/config.toml
 /frontend/node_modules
 /frontend/dist
+/_design_reference
 .DS_Store
 *.log

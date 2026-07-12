@@ -23,12 +23,15 @@ expense management with role-based access and operational analytics.
    sqlx migrate run
    cargo run
    ```
-3. Frontend:
+3. Frontend (runs on `http://localhost:5174`):
    ```
    cd frontend
    npm install
    npm run dev
    ```
+   The frontend already has a working login page, sidebar navigation, and
+   every screen wired to mock data — see `frontend/README.md`. Swap mock
+   data for real API calls as each backend route stops being a `TODO`.
 
 ## Windows build note
 
