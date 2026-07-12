@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import StatusBadge from '../components/StatusBadge';
 import Modal from '../components/Modal';
-import { apiRequest } from '../api';
+import { apiRequest, hasRole } from '../api';
 
 const EMPTY_FORM = {
   name: '',
@@ -13,9 +13,13 @@ const EMPTY_FORM = {
 };
 
 export default function Drivers() {
+  const canManage = hasRole('fleet_manager');
+
   const [drivers, setDrivers] = useState([]);
   const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -32,29 +36,74 @@ export default function Drivers() {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
+  function openAddForm() {
+    setEditingId(null);
+    setForm(EMPTY_FORM);
+    setFormError('');
+    setShowForm(true);
+  }
+
+  function openEditForm(driver) {
+    setEditingId(driver.id);
+    setForm({
+      name: driver.name,
+      license_number: driver.license_number,
+      license_category: driver.license_category,
+      license_expiry_date: driver.license_expiry_date,
+      contact_number: driver.contact_number,
+      safety_score: String(driver.safety_score),
+    });
+    setFormError('');
+    setShowForm(true);
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setFormError('');
     setSaving(true);
     try {
-      await apiRequest('/drivers', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: form.name,
-          license_number: form.license_number,
-          license_category: form.license_category,
-          license_expiry_date: form.license_expiry_date,
-          contact_number: form.contact_number,
-          safety_score: Number(form.safety_score),
-        }),
-      });
+      if (editingId) {
+        await apiRequest(`/drivers/${editingId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            name: form.name,
+            license_category: form.license_category,
+            license_expiry_date: form.license_expiry_date,
+            contact_number: form.contact_number,
+            safety_score: Number(form.safety_score),
+          }),
+        });
+      } else {
+        await apiRequest('/drivers', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: form.name,
+            license_number: form.license_number,
+            license_category: form.license_category,
+            license_expiry_date: form.license_expiry_date,
+            contact_number: form.contact_number,
+            safety_score: Number(form.safety_score),
+          }),
+        });
+      }
       setShowForm(false);
       setForm(EMPTY_FORM);
+      setEditingId(null);
       load();
     } catch (err) {
       setFormError(err.message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDelete(id) {
+    setActionError('');
+    try {
+      await apiRequest(`/drivers/${id}`, { method: 'DELETE' });
+      load();
+    } catch (err) {
+      setActionError(err.message);
     }
   }
 
@@ -65,12 +114,15 @@ export default function Drivers() {
           <span className="kicker">Master Data</span>
           <h2>Driver Management</h2>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-          Add Driver
-        </button>
+        {canManage && (
+          <button className="btn btn-primary" onClick={openAddForm}>
+            Add Driver
+          </button>
+        )}
       </div>
 
       {error && <div className="error-text">{error}</div>}
+      {actionError && <div className="error-text">{actionError}</div>}
 
       <div className="card">
         <table>
@@ -82,6 +134,7 @@ export default function Drivers() {
               <th>Expiry</th>
               <th>Safety Score</th>
               <th>Status</th>
+              {canManage && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -93,6 +146,12 @@ export default function Drivers() {
                 <td>{d.license_expiry_date}</td>
                 <td>{d.safety_score}</td>
                 <td><StatusBadge status={d.status} /></td>
+                {canManage && (
+                  <td style={{ display: 'flex', gap: 6 }}>
+                    <button className="btn btn-secondary" onClick={() => openEditForm(d)}>Edit</button>
+                    <button className="btn btn-secondary" onClick={() => handleDelete(d.id)}>Delete</button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -100,7 +159,7 @@ export default function Drivers() {
       </div>
 
       {showForm && (
-        <Modal title="Add Driver" onClose={() => setShowForm(false)}>
+        <Modal title={editingId ? 'Edit Driver' : 'Add Driver'} onClose={() => setShowForm(false)}>
           <form onSubmit={handleSubmit}>
             <div className="field">
               <label>Name</label>
@@ -110,6 +169,7 @@ export default function Drivers() {
               <label>License Number</label>
               <input
                 required
+                disabled={!!editingId}
                 value={form.license_number}
                 onChange={(e) => updateField('license_number', e.target.value)}
               />
@@ -151,7 +211,7 @@ export default function Drivers() {
             </div>
             {formError && <div className="error-text">{formError}</div>}
             <button className="btn btn-primary" style={{ width: '100%' }} disabled={saving}>
-              {saving ? 'Saving...' : 'Save Driver'}
+              {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Save Driver'}
             </button>
           </form>
         </Modal>

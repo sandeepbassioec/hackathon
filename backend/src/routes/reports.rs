@@ -2,6 +2,9 @@ use axum::{extract::State, Json, routing::get, Router};
 use serde::Serialize;
 use sqlx::{PgPool, Row};
 
+use crate::auth::AuthUser;
+use crate::error::ApiError;
+
 pub fn router() -> Router<PgPool> {
     Router::new()
         .route("/dashboard", get(dashboard_kpis))
@@ -22,8 +25,9 @@ struct DashboardKpis {
 }
 
 async fn dashboard_kpis(
+    _user: AuthUser,
     State(pool): State<PgPool>,
-) -> Result<Json<DashboardKpis>, axum::http::StatusCode> {
+) -> Result<Json<DashboardKpis>, ApiError> {
     let row = sqlx::query(
         "SELECT
             COUNT(*) FILTER (WHERE status <> 'retired') AS active_vehicles,
@@ -33,8 +37,7 @@ async fn dashboard_kpis(
          FROM vehicles",
     )
     .fetch_one(&pool)
-    .await
-    .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     let trip_row = sqlx::query(
         "SELECT
@@ -43,13 +46,11 @@ async fn dashboard_kpis(
          FROM trips",
     )
     .fetch_one(&pool)
-    .await
-    .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     let driver_row = sqlx::query("SELECT COUNT(*) AS drivers_on_duty FROM drivers WHERE status = 'on_trip'")
         .fetch_one(&pool)
-        .await
-        .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     let active_vehicles: i64 = row.get("active_vehicles");
     let available_vehicles: i64 = row.get("available_vehicles");
@@ -76,7 +77,7 @@ async fn dashboard_kpis(
     }))
 }
 
-async fn fleet_utilization() -> &'static str { "TODO: fleet utilization report (filters by type/status/region)" }
+async fn fleet_utilization(_user: AuthUser) -> &'static str { "TODO: fleet utilization report (filters by type/status/region)" }
 
 #[derive(Serialize)]
 struct VehicleCostSummary {
@@ -92,8 +93,9 @@ struct VehicleCostSummary {
 }
 
 async fn vehicle_roi(
+    _user: AuthUser,
     State(pool): State<PgPool>,
-) -> Result<Json<Vec<VehicleCostSummary>>, axum::http::StatusCode> {
+) -> Result<Json<Vec<VehicleCostSummary>>, ApiError> {
     let rows = sqlx::query(
         "SELECT
             v.registration_number,
@@ -104,8 +106,7 @@ async fn vehicle_roi(
          ORDER BY v.registration_number",
     )
     .fetch_all(&pool)
-    .await
-    .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+    .await?;
 
     let summaries = rows
         .into_iter()

@@ -10,6 +10,17 @@ export function setToken(token) {
 
 export function clearToken() {
   localStorage.removeItem('token');
+  localStorage.removeItem('role');
+}
+
+export function getRole() {
+  return localStorage.getItem('role');
+}
+
+// RBAC matrix mirrored from the backend (backend is the real enforcement;
+// this only controls what the UI shows/hides).
+export function hasRole(...allowed) {
+  return allowed.includes(getRole());
 }
 
 export async function login(email, password) {
@@ -23,6 +34,7 @@ export async function login(email, password) {
   }
   const data = await res.json();
   setToken(data.token);
+  localStorage.setItem('role', data.role);
   return data;
 }
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import StatusBadge from '../components/StatusBadge';
 import Modal from '../components/Modal';
-import { apiRequest } from '../api';
+import { apiRequest, hasRole } from '../api';
 
 function lookup(list, id) {
   return list.find((x) => x.id === id);
@@ -17,6 +17,8 @@ const EMPTY_TRIP_FORM = {
 };
 
 export default function Trips() {
+  const canManage = hasRole('fleet_manager', 'driver');
+
   const [trips, setTrips] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [drivers, setDrivers] = useState([]);
@@ -26,6 +28,10 @@ export default function Trips() {
   const [newTripForm, setNewTripForm] = useState(EMPTY_TRIP_FORM);
   const [newTripError, setNewTripError] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const [editingTrip, setEditingTrip] = useState(null);
+  const [editForm, setEditForm] = useState(EMPTY_TRIP_FORM);
+  const [editError, setEditError] = useState('');
 
   const [completingTrip, setCompletingTrip] = useState(null);
   const [completeForm, setCompleteForm] = useState({ final_odometer: '', fuel_consumed: '' });
@@ -72,6 +78,48 @@ export default function Trips() {
       setNewTripError(err.message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  function openEditForm(trip) {
+    setEditingTrip(trip);
+    setEditForm({
+      ...EMPTY_TRIP_FORM,
+      source: trip.source,
+      destination: trip.destination,
+      cargo_weight: String(trip.cargo_weight),
+      planned_distance: String(trip.planned_distance),
+    });
+    setEditError('');
+  }
+
+  async function handleEditSubmit(e) {
+    e.preventDefault();
+    setEditError('');
+    try {
+      await apiRequest(`/trips/${editingTrip.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          source: editForm.source,
+          destination: editForm.destination,
+          cargo_weight: Number(editForm.cargo_weight),
+          planned_distance: Number(editForm.planned_distance),
+        }),
+      });
+      setEditingTrip(null);
+      load();
+    } catch (err) {
+      setEditError(err.message);
+    }
+  }
+
+  async function handleDeleteTrip(tripId) {
+    setActionError('');
+    try {
+      await apiRequest(`/trips/${tripId}`, { method: 'DELETE' });
+      load();
+    } catch (err) {
+      setActionError(err.message);
     }
   }
 
@@ -124,9 +172,11 @@ export default function Trips() {
           <span className="kicker">Operations</span>
           <h2>Trip Management</h2>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowNewTrip(true)}>
-          New Trip
-        </button>
+        {canManage && (
+          <button className="btn btn-primary" onClick={() => setShowNewTrip(true)}>
+            New Trip
+          </button>
+        )}
       </div>
 
       {error && <div className="error-text">{error}</div>}
@@ -142,7 +192,7 @@ export default function Trips() {
               <th>Cargo (kg)</th>
               <th>Distance (km)</th>
               <th>Status</th>
-              <th>Actions</th>
+              {canManage && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -154,23 +204,27 @@ export default function Trips() {
                 <td>{t.cargo_weight}</td>
                 <td>{t.planned_distance}</td>
                 <td><StatusBadge status={t.status} /></td>
-                <td style={{ display: 'flex', gap: 6 }}>
-                  {t.status === 'draft' && (
-                    <button className="btn btn-secondary" onClick={() => handleDispatch(t.id)}>
-                      Dispatch
-                    </button>
-                  )}
-                  {t.status === 'dispatched' && (
-                    <button className="btn btn-secondary" onClick={() => setCompletingTrip(t)}>
-                      Complete
-                    </button>
-                  )}
-                  {(t.status === 'draft' || t.status === 'dispatched') && (
-                    <button className="btn btn-secondary" onClick={() => handleCancel(t.id)}>
-                      Cancel
-                    </button>
-                  )}
-                </td>
+                {canManage && (
+                  <td style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {t.status === 'draft' && (
+                      <>
+                        <button className="btn btn-secondary" onClick={() => openEditForm(t)}>Edit</button>
+                        <button className="btn btn-secondary" onClick={() => handleDeleteTrip(t.id)}>Delete</button>
+                        <button className="btn btn-secondary" onClick={() => handleDispatch(t.id)}>Dispatch</button>
+                      </>
+                    )}
+                    {t.status === 'dispatched' && (
+                      <button className="btn btn-secondary" onClick={() => setCompletingTrip(t)}>
+                        Complete
+                      </button>
+                    )}
+                    {(t.status === 'draft' || t.status === 'dispatched') && (
+                      <button className="btn btn-secondary" onClick={() => handleCancel(t.id)}>
+                        Cancel
+                      </button>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -241,6 +295,45 @@ export default function Trips() {
             {newTripError && <div className="error-text">{newTripError}</div>}
             <button className="btn btn-primary" style={{ width: '100%' }} disabled={saving}>
               {saving ? 'Saving...' : 'Create Trip'}
+            </button>
+          </form>
+        </Modal>
+      )}
+
+      {editingTrip && (
+        <Modal title="Edit Trip" onClose={() => setEditingTrip(null)}>
+          <form onSubmit={handleEditSubmit}>
+            <div className="field">
+              <label>Source</label>
+              <input required value={editForm.source} onChange={(e) => setEditForm((f) => ({ ...f, source: e.target.value }))} />
+            </div>
+            <div className="field">
+              <label>Destination</label>
+              <input required value={editForm.destination} onChange={(e) => setEditForm((f) => ({ ...f, destination: e.target.value }))} />
+            </div>
+            <div className="field">
+              <label>Cargo Weight (kg)</label>
+              <input
+                required
+                type="number"
+                min="1"
+                value={editForm.cargo_weight}
+                onChange={(e) => setEditForm((f) => ({ ...f, cargo_weight: e.target.value }))}
+              />
+            </div>
+            <div className="field">
+              <label>Planned Distance (km)</label>
+              <input
+                required
+                type="number"
+                min="1"
+                value={editForm.planned_distance}
+                onChange={(e) => setEditForm((f) => ({ ...f, planned_distance: e.target.value }))}
+              />
+            </div>
+            {editError && <div className="error-text">{editError}</div>}
+            <button className="btn btn-primary" style={{ width: '100%' }}>
+              Save Changes
             </button>
           </form>
         </Modal>

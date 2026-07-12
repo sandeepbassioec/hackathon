@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row};
 
 use crate::auth::{jwt, password};
+use crate::error::ApiError;
 
 #[derive(Deserialize)]
 pub struct LoginRequest {
@@ -13,6 +14,7 @@ pub struct LoginRequest {
 #[derive(Serialize)]
 pub struct LoginResponse {
     pub token: String,
+    pub role: String,
 }
 
 pub fn router() -> Router<PgPool> {
@@ -22,7 +24,7 @@ pub fn router() -> Router<PgPool> {
 async fn login(
     State(pool): State<PgPool>,
     Json(req): Json<LoginRequest>,
-) -> Result<Json<LoginResponse>, axum::http::StatusCode> {
+) -> Result<Json<LoginResponse>, ApiError> {
     let row = sqlx::query(
         "SELECT users.id, users.password_hash, roles.name as role_name
          FROM users JOIN roles ON roles.id = users.role_id
@@ -30,19 +32,18 @@ async fn login(
     )
     .bind(&req.email)
     .fetch_optional(&pool)
-    .await
-    .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(axum::http::StatusCode::UNAUTHORIZED)?;
+    .await?
+    .ok_or_else(|| ApiError::unauthorized("invalid email or password"))?;
 
     let password_hash: String = row.get("password_hash");
     if !password::verify_password(&req.password, &password_hash) {
-        return Err(axum::http::StatusCode::UNAUTHORIZED);
+        return Err(ApiError::unauthorized("invalid email or password"));
     }
 
     let user_id: uuid::Uuid = row.get("id");
     let role_name: String = row.get("role_name");
     let token = jwt::issue_token(&user_id.to_string(), &role_name)
-        .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_| ApiError::new(axum::http::StatusCode::INTERNAL_SERVER_ERROR, "could not issue token"))?;
 
-    Ok(Json(LoginResponse { token }))
+    Ok(Json(LoginResponse { token, role: role_name }))
 }

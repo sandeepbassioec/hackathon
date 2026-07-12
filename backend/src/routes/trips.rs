@@ -8,20 +8,24 @@ use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::auth::AuthUser;
 use crate::error::ApiError;
 use crate::models::driver::Driver;
 use crate::models::trip::Trip;
 use crate::models::vehicle::Vehicle;
 
+const MANAGES_TRIPS: &[&str] = &["fleet_manager", "driver"];
+
 pub fn router() -> Router<PgPool> {
     Router::new()
         .route("/", get(list_trips).post(create_trip))
+        .route("/:id", axum::routing::patch(update_trip).delete(delete_trip))
         .route("/:id/dispatch", post(dispatch_trip))
         .route("/:id/complete", post(complete_trip))
         .route("/:id/cancel", post(cancel_trip))
 }
 
-async fn list_trips(State(pool): State<PgPool>) -> Result<Json<Vec<Trip>>, ApiError> {
+async fn list_trips(_user: AuthUser, State(pool): State<PgPool>) -> Result<Json<Vec<Trip>>, ApiError> {
     let trips = sqlx::query_as::<_, Trip>("SELECT * FROM trips ORDER BY created_at DESC")
         .fetch_all(&pool)
         .await?;
@@ -39,9 +43,12 @@ struct CreateTripRequest {
 }
 
 async fn create_trip(
+    user: AuthUser,
     State(pool): State<PgPool>,
     Json(req): Json<CreateTripRequest>,
 ) -> Result<Json<Trip>, ApiError> {
+    user.require_role(MANAGES_TRIPS)?;
+
     let vehicle = sqlx::query_as::<_, Vehicle>("SELECT * FROM vehicles WHERE id = $1")
         .bind(req.vehicle_id)
         .fetch_optional(&pool)
@@ -101,10 +108,84 @@ async fn fetch_trip(pool: &PgPool, id: Uuid) -> Result<Trip, ApiError> {
         .ok_or_else(|| ApiError::not_found("trip not found"))
 }
 
+#[derive(Deserialize)]
+struct UpdateTripRequest {
+    source: Option<String>,
+    destination: Option<String>,
+    cargo_weight: Option<f64>,
+    planned_distance: Option<f64>,
+}
+
+async fn update_trip(
+    user: AuthUser,
+    State(pool): State<PgPool>,
+    Path(id): Path<Uuid>,
+    Json(req): Json<UpdateTripRequest>,
+) -> Result<Json<Trip>, ApiError> {
+    user.require_role(MANAGES_TRIPS)?;
+
+    let trip = fetch_trip(&pool, id).await?;
+    if trip.status != "draft" {
+        return Err(ApiError::conflict("only draft trips can be edited"));
+    }
+
+    if let Some(cargo_weight) = req.cargo_weight {
+        let vehicle = sqlx::query_as::<_, Vehicle>("SELECT * FROM vehicles WHERE id = $1")
+            .bind(trip.vehicle_id)
+            .fetch_one(&pool)
+            .await?;
+        if cargo_weight > vehicle.max_load_capacity {
+            return Err(ApiError::bad_request(format!(
+                "cargo weight ({} kg) exceeds vehicle max load capacity ({} kg)",
+                cargo_weight, vehicle.max_load_capacity
+            )));
+        }
+    }
+
+    let updated = sqlx::query_as::<_, Trip>(
+        "UPDATE trips SET
+            source = COALESCE($1, source),
+            destination = COALESCE($2, destination),
+            cargo_weight = COALESCE($3, cargo_weight),
+            planned_distance = COALESCE($4, planned_distance)
+         WHERE id = $5
+         RETURNING *",
+    )
+    .bind(&req.source)
+    .bind(&req.destination)
+    .bind(req.cargo_weight)
+    .bind(req.planned_distance)
+    .bind(id)
+    .fetch_one(&pool)
+    .await?;
+
+    Ok(Json(updated))
+}
+
+async fn delete_trip(
+    user: AuthUser,
+    State(pool): State<PgPool>,
+    Path(id): Path<Uuid>,
+) -> Result<axum::http::StatusCode, ApiError> {
+    user.require_role(MANAGES_TRIPS)?;
+
+    let trip = fetch_trip(&pool, id).await?;
+    if trip.status != "draft" {
+        return Err(ApiError::conflict("only draft trips can be deleted"));
+    }
+
+    sqlx::query("DELETE FROM trips WHERE id = $1").bind(id).execute(&pool).await?;
+
+    Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
 async fn dispatch_trip(
+    user: AuthUser,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Trip>, ApiError> {
+    user.require_role(MANAGES_TRIPS)?;
+
     let trip = fetch_trip(&pool, id).await?;
     if trip.status != "draft" {
         return Err(ApiError::conflict(format!(
@@ -144,10 +225,13 @@ struct CompleteTripRequest {
 }
 
 async fn complete_trip(
+    user: AuthUser,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
     Json(req): Json<CompleteTripRequest>,
 ) -> Result<Json<Trip>, ApiError> {
+    user.require_role(MANAGES_TRIPS)?;
+
     let trip = fetch_trip(&pool, id).await?;
     if trip.status != "dispatched" {
         return Err(ApiError::conflict(format!(
@@ -185,9 +269,12 @@ async fn complete_trip(
 }
 
 async fn cancel_trip(
+    user: AuthUser,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Trip>, ApiError> {
+    user.require_role(MANAGES_TRIPS)?;
+
     let trip = fetch_trip(&pool, id).await?;
     if trip.status != "draft" && trip.status != "dispatched" {
         return Err(ApiError::conflict(format!(

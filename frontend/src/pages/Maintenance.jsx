@@ -1,19 +1,26 @@
 import { useEffect, useState } from 'react';
 import StatusBadge from '../components/StatusBadge';
 import Modal from '../components/Modal';
-import { apiRequest } from '../api';
+import { apiRequest, hasRole } from '../api';
 
 const EMPTY_FORM = { vehicle_id: '', description: '', cost: '' };
 
 export default function Maintenance() {
+  const canManage = hasRole('fleet_manager', 'driver');
+
   const [logs, setLogs] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
+
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const [editingLog, setEditingLog] = useState(null);
+  const [editForm, setEditForm] = useState({ description: '', cost: '' });
+  const [editError, setEditError] = useState('');
 
   function load() {
     Promise.all([apiRequest('/maintenance'), apiRequest('/vehicles')])
@@ -49,6 +56,40 @@ export default function Maintenance() {
     }
   }
 
+  function openEditForm(log) {
+    setEditingLog(log);
+    setEditForm({ description: log.description, cost: String(log.cost) });
+    setEditError('');
+  }
+
+  async function handleEditSubmit(e) {
+    e.preventDefault();
+    setEditError('');
+    try {
+      await apiRequest(`/maintenance/${editingLog.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          description: editForm.description,
+          cost: Number(editForm.cost),
+        }),
+      });
+      setEditingLog(null);
+      load();
+    } catch (err) {
+      setEditError(err.message);
+    }
+  }
+
+  async function handleDelete(id) {
+    setActionError('');
+    try {
+      await apiRequest(`/maintenance/${id}`, { method: 'DELETE' });
+      load();
+    } catch (err) {
+      setActionError(err.message);
+    }
+  }
+
   async function handleClose(id) {
     setActionError('');
     try {
@@ -68,9 +109,11 @@ export default function Maintenance() {
           <span className="kicker">Operations</span>
           <h2>Maintenance</h2>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-          New Maintenance Record
-        </button>
+        {canManage && (
+          <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+            New Maintenance Record
+          </button>
+        )}
       </div>
 
       {error && <div className="error-text">{error}</div>}
@@ -84,7 +127,7 @@ export default function Maintenance() {
               <th>Description</th>
               <th>Cost</th>
               <th>Status</th>
-              <th>Actions</th>
+              {canManage && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -96,13 +139,17 @@ export default function Maintenance() {
                 <td>{m.description}</td>
                 <td>&#8377;{m.cost.toLocaleString()}</td>
                 <td><StatusBadge status={m.status} /></td>
-                <td>
-                  {m.status === 'open' && (
-                    <button className="btn btn-secondary" onClick={() => handleClose(m.id)}>
-                      Close
-                    </button>
-                  )}
-                </td>
+                {canManage && (
+                  <td style={{ display: 'flex', gap: 6 }}>
+                    {m.status === 'open' && (
+                      <>
+                        <button className="btn btn-secondary" onClick={() => openEditForm(m)}>Edit</button>
+                        <button className="btn btn-secondary" onClick={() => handleDelete(m.id)}>Delete</button>
+                        <button className="btn btn-secondary" onClick={() => handleClose(m.id)}>Close</button>
+                      </>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -147,6 +194,34 @@ export default function Maintenance() {
             {formError && <div className="error-text">{formError}</div>}
             <button className="btn btn-primary" style={{ width: '100%' }} disabled={saving}>
               {saving ? 'Saving...' : 'Open Maintenance Record'}
+            </button>
+          </form>
+        </Modal>
+      )}
+
+      {editingLog && (
+        <Modal title="Edit Maintenance Record" onClose={() => setEditingLog(null)}>
+          <form onSubmit={handleEditSubmit}>
+            <div className="field">
+              <label>Description</label>
+              <input
+                required
+                value={editForm.description}
+                onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
+              />
+            </div>
+            <div className="field">
+              <label>Cost</label>
+              <input
+                type="number"
+                min="0"
+                value={editForm.cost}
+                onChange={(e) => setEditForm((f) => ({ ...f, cost: e.target.value }))}
+              />
+            </div>
+            {editError && <div className="error-text">{editError}</div>}
+            <button className="btn btn-primary" style={{ width: '100%' }}>
+              Save Changes
             </button>
           </form>
         </Modal>

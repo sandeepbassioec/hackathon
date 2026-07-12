@@ -26,6 +26,14 @@ impl ApiError {
     pub fn conflict(message: impl Into<String>) -> Self {
         Self::new(StatusCode::CONFLICT, message)
     }
+
+    pub fn unauthorized(message: impl Into<String>) -> Self {
+        Self::new(StatusCode::UNAUTHORIZED, message)
+    }
+
+    pub fn forbidden(message: impl Into<String>) -> Self {
+        Self::new(StatusCode::FORBIDDEN, message)
+    }
 }
 
 impl IntoResponse for ApiError {
@@ -37,8 +45,14 @@ impl IntoResponse for ApiError {
 impl From<sqlx::Error> for ApiError {
     fn from(err: sqlx::Error) -> Self {
         if let sqlx::Error::Database(db_err) = &err {
-            if db_err.code().as_deref() == Some("23505") {
-                return ApiError::conflict("that value already exists (unique constraint)");
+            match db_err.code().as_deref() {
+                Some("23505") => return ApiError::conflict("that value already exists (unique constraint)"),
+                Some("23503") => {
+                    return ApiError::conflict(
+                        "cannot delete/modify this record because other records still reference it",
+                    )
+                }
+                _ => {}
             }
         }
         ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "internal server error")

@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react';
 import Modal from '../components/Modal';
-import { apiRequest } from '../api';
+import { apiRequest, hasRole } from '../api';
 
 const EMPTY_FUEL_FORM = { vehicle_id: '', liters: '', cost: '', log_date: '' };
 const EMPTY_EXPENSE_FORM = { vehicle_id: '', expense_type: '', amount: '', expense_date: '', description: '' };
 
 export default function FuelExpense() {
+  const canManage = hasRole('financial_analyst');
+
   const [fuelLogs, setFuelLogs] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
 
   const [showForm, setShowForm] = useState(false);
   const [entryType, setEntryType] = useState('fuel');
@@ -17,6 +20,12 @@ export default function FuelExpense() {
   const [expenseForm, setExpenseForm] = useState(EMPTY_EXPENSE_FORM);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const [editingFuel, setEditingFuel] = useState(null);
+  const [editFuelForm, setEditFuelForm] = useState(EMPTY_FUEL_FORM);
+  const [editingExpense, setEditingExpense] = useState(null);
+  const [editExpenseForm, setEditExpenseForm] = useState(EMPTY_EXPENSE_FORM);
+  const [editError, setEditError] = useState('');
 
   function load() {
     Promise.all([apiRequest('/fuel'), apiRequest('/expenses'), apiRequest('/vehicles')])
@@ -72,6 +81,88 @@ export default function FuelExpense() {
     }
   }
 
+  function openEditFuel(log) {
+    setEditingFuel(log);
+    setEditFuelForm({
+      vehicle_id: log.vehicle_id,
+      liters: String(log.liters),
+      cost: String(log.cost),
+      log_date: log.log_date,
+    });
+    setEditError('');
+  }
+
+  async function handleEditFuelSubmit(e) {
+    e.preventDefault();
+    setEditError('');
+    try {
+      await apiRequest(`/fuel/${editingFuel.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          liters: Number(editFuelForm.liters),
+          cost: Number(editFuelForm.cost),
+          log_date: editFuelForm.log_date,
+        }),
+      });
+      setEditingFuel(null);
+      load();
+    } catch (err) {
+      setEditError(err.message);
+    }
+  }
+
+  async function handleDeleteFuel(id) {
+    setActionError('');
+    try {
+      await apiRequest(`/fuel/${id}`, { method: 'DELETE' });
+      load();
+    } catch (err) {
+      setActionError(err.message);
+    }
+  }
+
+  function openEditExpense(exp) {
+    setEditingExpense(exp);
+    setEditExpenseForm({
+      vehicle_id: exp.vehicle_id,
+      expense_type: exp.expense_type,
+      amount: String(exp.amount),
+      expense_date: exp.expense_date,
+      description: exp.description || '',
+    });
+    setEditError('');
+  }
+
+  async function handleEditExpenseSubmit(e) {
+    e.preventDefault();
+    setEditError('');
+    try {
+      await apiRequest(`/expenses/${editingExpense.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          expense_type: editExpenseForm.expense_type,
+          amount: Number(editExpenseForm.amount),
+          expense_date: editExpenseForm.expense_date,
+          description: editExpenseForm.description || null,
+        }),
+      });
+      setEditingExpense(null);
+      load();
+    } catch (err) {
+      setEditError(err.message);
+    }
+  }
+
+  async function handleDeleteExpense(id) {
+    setActionError('');
+    try {
+      await apiRequest(`/expenses/${id}`, { method: 'DELETE' });
+      load();
+    } catch (err) {
+      setActionError(err.message);
+    }
+  }
+
   return (
     <>
       <div className="topbar">
@@ -79,12 +170,15 @@ export default function FuelExpense() {
           <span className="kicker">Operations</span>
           <h2>Fuel & Expense</h2>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-          Add Entry
-        </button>
+        {canManage && (
+          <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+            Add Entry
+          </button>
+        )}
       </div>
 
       {error && <div className="error-text">{error}</div>}
+      {actionError && <div className="error-text">{actionError}</div>}
 
       <div className="two-col">
         <div className="card">
@@ -96,6 +190,7 @@ export default function FuelExpense() {
                 <th>Liters</th>
                 <th>Cost</th>
                 <th>Date</th>
+                {canManage && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -105,6 +200,12 @@ export default function FuelExpense() {
                   <td>{f.liters}</td>
                   <td>&#8377;{f.cost}</td>
                   <td>{f.log_date}</td>
+                  {canManage && (
+                    <td style={{ display: 'flex', gap: 6 }}>
+                      <button className="btn btn-secondary" onClick={() => openEditFuel(f)}>Edit</button>
+                      <button className="btn btn-secondary" onClick={() => handleDeleteFuel(f.id)}>Delete</button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -120,6 +221,7 @@ export default function FuelExpense() {
                 <th>Type</th>
                 <th>Amount</th>
                 <th>Date</th>
+                {canManage && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -129,6 +231,12 @@ export default function FuelExpense() {
                   <td>{e.expense_type}</td>
                   <td>&#8377;{e.amount}</td>
                   <td>{e.expense_date}</td>
+                  {canManage && (
+                    <td style={{ display: 'flex', gap: 6 }}>
+                      <button className="btn btn-secondary" onClick={() => openEditExpense(e)}>Edit</button>
+                      <button className="btn btn-secondary" onClick={() => handleDeleteExpense(e.id)}>Delete</button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -228,6 +336,59 @@ export default function FuelExpense() {
             <button className="btn btn-primary" style={{ width: '100%' }} disabled={saving}>
               {saving ? 'Saving...' : 'Save Entry'}
             </button>
+          </form>
+        </Modal>
+      )}
+
+      {editingFuel && (
+        <Modal title="Edit Fuel Log" onClose={() => setEditingFuel(null)}>
+          <form onSubmit={handleEditFuelSubmit}>
+            <div className="field">
+              <label>Liters</label>
+              <input required type="number" min="0.1" step="0.1" value={editFuelForm.liters}
+                onChange={(e) => setEditFuelForm((f) => ({ ...f, liters: e.target.value }))} />
+            </div>
+            <div className="field">
+              <label>Cost</label>
+              <input required type="number" min="0" value={editFuelForm.cost}
+                onChange={(e) => setEditFuelForm((f) => ({ ...f, cost: e.target.value }))} />
+            </div>
+            <div className="field">
+              <label>Date</label>
+              <input required type="date" value={editFuelForm.log_date}
+                onChange={(e) => setEditFuelForm((f) => ({ ...f, log_date: e.target.value }))} />
+            </div>
+            {editError && <div className="error-text">{editError}</div>}
+            <button className="btn btn-primary" style={{ width: '100%' }}>Save Changes</button>
+          </form>
+        </Modal>
+      )}
+
+      {editingExpense && (
+        <Modal title="Edit Expense" onClose={() => setEditingExpense(null)}>
+          <form onSubmit={handleEditExpenseSubmit}>
+            <div className="field">
+              <label>Type</label>
+              <input required value={editExpenseForm.expense_type}
+                onChange={(e) => setEditExpenseForm((f) => ({ ...f, expense_type: e.target.value }))} />
+            </div>
+            <div className="field">
+              <label>Amount</label>
+              <input required type="number" min="0" value={editExpenseForm.amount}
+                onChange={(e) => setEditExpenseForm((f) => ({ ...f, amount: e.target.value }))} />
+            </div>
+            <div className="field">
+              <label>Date</label>
+              <input required type="date" value={editExpenseForm.expense_date}
+                onChange={(e) => setEditExpenseForm((f) => ({ ...f, expense_date: e.target.value }))} />
+            </div>
+            <div className="field">
+              <label>Description</label>
+              <input value={editExpenseForm.description}
+                onChange={(e) => setEditExpenseForm((f) => ({ ...f, description: e.target.value }))} />
+            </div>
+            {editError && <div className="error-text">{editError}</div>}
+            <button className="btn btn-primary" style={{ width: '100%' }}>Save Changes</button>
           </form>
         </Modal>
       )}
