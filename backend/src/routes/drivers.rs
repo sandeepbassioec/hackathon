@@ -1,5 +1,7 @@
-use axum::{routing::get, Router};
+use axum::{extract::State, Json, routing::get, Router};
 use sqlx::PgPool;
+
+use crate::models::driver::Driver;
 
 pub fn router() -> Router<PgPool> {
     Router::new().route("/", get(list_drivers))
@@ -8,6 +10,12 @@ pub fn router() -> Router<PgPool> {
     // excluded from any dispatch-selection endpoint.
 }
 
-async fn list_drivers() -> &'static str {
-    "TODO: list drivers"
+async fn list_drivers(
+    State(pool): State<PgPool>,
+) -> Result<Json<Vec<Driver>>, axum::http::StatusCode> {
+    let drivers = sqlx::query_as::<_, Driver>("SELECT * FROM drivers ORDER BY created_at DESC")
+        .fetch_all(&pool)
+        .await
+        .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(drivers))
 }

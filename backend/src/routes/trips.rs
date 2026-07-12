@@ -1,5 +1,7 @@
-use axum::{routing::{get, post}, Router};
+use axum::{extract::State, Json, routing::{get, post}, Router};
 use sqlx::PgPool;
+
+use crate::models::trip::Trip;
 
 pub fn router() -> Router<PgPool> {
     Router::new()
@@ -13,7 +15,16 @@ pub fn router() -> Router<PgPool> {
     // automatic status flips on vehicle/driver described in the rules.
 }
 
-async fn list_trips() -> &'static str { "TODO: list trips" }
+async fn list_trips(
+    State(pool): State<PgPool>,
+) -> Result<Json<Vec<Trip>>, axum::http::StatusCode> {
+    let trips = sqlx::query_as::<_, Trip>("SELECT * FROM trips ORDER BY created_at DESC")
+        .fetch_all(&pool)
+        .await
+        .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(trips))
+}
+
 async fn create_trip() -> &'static str { "TODO: create trip (validate cargo weight)" }
 async fn dispatch_trip() -> &'static str { "TODO: dispatch trip" }
 async fn complete_trip() -> &'static str { "TODO: complete trip" }

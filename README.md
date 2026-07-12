@@ -11,27 +11,40 @@ expense management with role-based access and operational analytics.
 
 ## Getting started
 
-1. Start Postgres:
-   ```
-   docker compose up -d
-   ```
+1. Postgres: either use your own local install, or `docker compose up -d`
+   (provisions a matching `odoo_hackathon` database). If you already created
+   the `odoo_hackathon` database yourself, just point `DATABASE_URL` at it.
 2. Backend:
    ```
    cd backend
-   cp .env.example .env
+   cp .env.example .env        # edit DATABASE_URL user/password to match your local Postgres
    cargo install sqlx-cli --no-default-features --features postgres
-   sqlx migrate run
+   sqlx migrate run            # creates tables (0001) and inserts demo data (0002)
    cargo run
    ```
+   Migration `0002_seed.sql` inserts demo rows for every table (vehicles,
+   drivers, trips, maintenance, fuel logs, expenses) plus one login user per
+   role. Log in with any of these — all share the password `password123`:
+   - `fleet.manager@transitops.demo`
+   - `driver@transitops.demo`
+   - `safety.officer@transitops.demo`
+   - `financial.analyst@transitops.demo`
+
+   The seed data isn't part of the graded solution — delete or edit
+   `0002_seed.sql` freely, or add your own rows via `cargo run --example
+   hash_password -- <password>` to generate a hash for a new user.
 3. Frontend (runs on `http://localhost:5174`):
    ```
    cd frontend
    npm install
    npm run dev
    ```
-   The frontend already has a working login page, sidebar navigation, and
-   every screen wired to mock data — see `frontend/README.md`. Swap mock
-   data for real API calls as each backend route stops being a `TODO`.
+   Every screen calls the real backend API (see `frontend/src/api.js`) — no
+   mock data left in the frontend. List endpoints (`GET /api/vehicles`,
+   `/drivers`, `/trips`, `/maintenance`, `/fuel`, `/expenses`,
+   `/reports/dashboard`, `/reports/vehicle-roi`) are already wired to
+   Postgres; create/update endpoints and business-rule validation are still
+   `TODO`s in `backend/src/routes/` for the team to build live.
 
 ## Windows build note
 
@@ -73,6 +86,16 @@ hours) and `git pull --rebase` before pushing.
 
 Shared/foundational files (`main.rs`, `db.rs`, `migrations/`) are already wired
 up — coordinate before editing those since everyone depends on them.
+
+## Known gap: Vehicle ROI needs a revenue source
+
+The problem statement's ROI formula is `(Revenue - (Maintenance + Fuel)) /
+Acquisition Cost`, but no entity in the given schema tracks revenue per
+vehicle. `/api/reports/vehicle-roi` currently returns acquisition cost, total
+fuel cost, and total maintenance cost per vehicle — the team needs to decide
+where "revenue" comes from (e.g. a rate per trip/distance) before the actual
+ROI number can be computed. See the comment in
+`backend/src/routes/reports.rs`.
 
 ## Business rules to implement live
 

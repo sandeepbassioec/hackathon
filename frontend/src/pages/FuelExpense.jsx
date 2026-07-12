@@ -1,10 +1,26 @@
-import { mockFuelLogs, mockExpenses, mockVehicles } from '../data/mockData';
-
-function regNo(vehicleId) {
-  return mockVehicles.find((v) => v.id === vehicleId)?.registration_number;
-}
+import { useEffect, useState } from 'react';
+import { apiRequest } from '../api';
 
 export default function FuelExpense() {
+  const [fuelLogs, setFuelLogs] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    Promise.all([apiRequest('/fuel'), apiRequest('/expenses'), apiRequest('/vehicles')])
+      .then(([f, e, v]) => {
+        setFuelLogs(f);
+        setExpenses(e);
+        setVehicles(v);
+      })
+      .catch((err) => setError(err.message));
+  }, []);
+
+  function regNo(vehicleId) {
+    return vehicles.find((v) => v.id === vehicleId)?.registration_number;
+  }
+
   return (
     <>
       <div className="topbar">
@@ -14,6 +30,8 @@ export default function FuelExpense() {
         </div>
         <button className="btn btn-primary">Add Entry</button>
       </div>
+
+      {error && <div className="error-text">{error}</div>}
 
       <div className="two-col">
         <div className="card">
@@ -28,7 +46,7 @@ export default function FuelExpense() {
               </tr>
             </thead>
             <tbody>
-              {mockFuelLogs.map((f) => (
+              {fuelLogs.map((f) => (
                 <tr key={f.id}>
                   <td className="mono">{regNo(f.vehicle_id)}</td>
                   <td>{f.liters}</td>
@@ -52,7 +70,7 @@ export default function FuelExpense() {
               </tr>
             </thead>
             <tbody>
-              {mockExpenses.map((e) => (
+              {expenses.map((e) => (
                 <tr key={e.id}>
                   <td className="mono">{regNo(e.vehicle_id)}</td>
                   <td>{e.expense_type}</td>

@@ -1,11 +1,19 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import StatusBadge from '../components/StatusBadge';
-import { mockVehicles } from '../data/mockData';
+import { apiRequest } from '../api';
 
 export default function Vehicles() {
+  const [vehicles, setVehicles] = useState([]);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [error, setError] = useState('');
 
-  const rows = mockVehicles.filter(
+  useEffect(() => {
+    apiRequest('/vehicles')
+      .then(setVehicles)
+      .catch((err) => setError(err.message));
+  }, []);
+
+  const rows = vehicles.filter(
     (v) => statusFilter === 'all' || v.status === statusFilter
   );
 
@@ -28,6 +36,8 @@ export default function Vehicles() {
           <option value="retired">Retired</option>
         </select>
       </div>
+
+      {error && <div className="error-text">{error}</div>}
 
       <div className="card">
         <table>

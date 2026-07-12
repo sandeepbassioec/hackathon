@@ -1,6 +1,16 @@
-import { mockVehicleRoi } from '../data/mockData';
+import { useEffect, useState } from 'react';
+import { apiRequest } from '../api';
 
 export default function Reports() {
+  const [costs, setCosts] = useState([]);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    apiRequest('/reports/vehicle-roi')
+      .then(setCosts)
+      .catch((err) => setError(err.message));
+  }, []);
+
   return (
     <>
       <div className="topbar">
@@ -11,28 +21,31 @@ export default function Reports() {
         <button className="btn btn-secondary">Export CSV</button>
       </div>
 
+      {error && <div className="error-text">{error}</div>}
+
       <div className="card">
-        <h3 style={{ marginBottom: 12 }}>Vehicle ROI</h3>
+        <h3 style={{ marginBottom: 4 }}>Vehicle Cost Summary</h3>
+        <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 0, marginBottom: 12 }}>
+          ROI needs a revenue figure per vehicle, which isn't part of the
+          problem statement's data model yet — showing cost breakdown until
+          the team decides a revenue source (e.g. a per-trip billing rate).
+        </p>
         <table>
           <thead>
             <tr>
               <th>Vehicle</th>
-              <th>Revenue</th>
-              <th>Fuel</th>
-              <th>Maintenance</th>
               <th>Acquisition Cost</th>
-              <th>ROI</th>
+              <th>Total Fuel Cost</th>
+              <th>Total Maintenance Cost</th>
             </tr>
           </thead>
           <tbody>
-            {mockVehicleRoi.map((r) => (
+            {costs.map((r) => (
               <tr key={r.registration_number}>
                 <td className="mono">{r.registration_number}</td>
-                <td>&#8377;{r.revenue.toLocaleString()}</td>
-                <td>&#8377;{r.fuel.toLocaleString()}</td>
-                <td>&#8377;{r.maintenance.toLocaleString()}</td>
                 <td>&#8377;{r.acquisition_cost.toLocaleString()}</td>
-                <td className="mono">{(r.roi * 100).toFixed(1)}%</td>
+                <td>&#8377;{r.total_fuel_cost.toLocaleString()}</td>
+                <td>&#8377;{r.total_maintenance_cost.toLocaleString()}</td>
               </tr>
             ))}
           </tbody>

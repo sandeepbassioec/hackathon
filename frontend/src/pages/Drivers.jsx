@@ -1,7 +1,17 @@
+import { useEffect, useState } from 'react';
 import StatusBadge from '../components/StatusBadge';
-import { mockDrivers } from '../data/mockData';
+import { apiRequest } from '../api';
 
 export default function Drivers() {
+  const [drivers, setDrivers] = useState([]);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    apiRequest('/drivers')
+      .then(setDrivers)
+      .catch((err) => setError(err.message));
+  }, []);
+
   return (
     <>
       <div className="topbar">
@@ -11,6 +21,8 @@ export default function Drivers() {
         </div>
         <button className="btn btn-primary">Add Driver</button>
       </div>
+
+      {error && <div className="error-text">{error}</div>}
 
       <div className="card">
         <table>
@@ -25,7 +37,7 @@ export default function Drivers() {
             </tr>
           </thead>
           <tbody>
-            {mockDrivers.map((d) => (
+            {drivers.map((d) => (
               <tr key={d.id}>
                 <td>{d.name}</td>
                 <td className="mono">{d.license_number}</td>

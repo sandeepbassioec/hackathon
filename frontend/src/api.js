@@ -26,9 +26,8 @@ export async function login(email, password) {
   return data;
 }
 
-// Generic authenticated request helper for the endpoints the team fills in
-// (vehicles, drivers, trips, maintenance, fuel/expense, reports). Falls back
-// to mock data (see src/data/mockData.js) until each route is implemented.
+// Generic authenticated request helper for all backend endpoints
+// (vehicles, drivers, trips, maintenance, fuel/expense, reports).
 export async function apiRequest(path, options = {}) {
   const token = getToken();
   const res = await fetch(`${BASE_URL}${path}`, {

@@ -4,9 +4,9 @@ services:
     image: postgres:16
     restart: unless-stopped
     environment:
-      POSTGRES_USER: transitops
-      POSTGRES_PASSWORD: transitops
-      POSTGRES_DB: transitops
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: odoo_hackathon
     ports:
       - "5432:5432"
     volumes:
