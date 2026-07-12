@@ -30,6 +30,32 @@ expense management with role-based access and operational analytics.
    npm run dev
    ```
 
+## Windows build note
+
+On Windows, if `cargo build` fails with an MSVC linker error (`LNK1104`,
+`cannot open file 'msvcrt.lib'`) or a `ring`/`cc-rs` compile error about a
+missing `vcruntime.h`, create a **local, untracked**
+`backend/.cargo/config.toml` (already gitignored) with your machine's actual
+Visual Studio / Windows SDK paths:
+
+```toml
+[target.x86_64-pc-windows-msvc]
+linker = "C:\\Path\\To\\VC\\Tools\\MSVC\\<version>\\bin\\Hostx64\\x64\\link.exe"
+
+[env]
+LIB = "C:\\Path\\To\\VC\\Tools\\MSVC\\<version>\\lib\\x64;C:\\Path\\To\\Windows Kits\\10\\Lib\\<sdk>\\ucrt\\x64;C:\\Path\\To\\Windows Kits\\10\\Lib\\<sdk>\\um\\x64"
+INCLUDE = "C:\\Path\\To\\VC\\Tools\\MSVC\\<version>\\include;C:\\Path\\To\\Windows Kits\\10\\include\\<sdk>\\ucrt;C:\\Path\\To\\Windows Kits\\10\\include\\<sdk>\\um;C:\\Path\\To\\Windows Kits\\10\\include\\<sdk>\\shared"
+CC = "C:\\Path\\To\\VC\\Tools\\MSVC\\<version>\\bin\\Hostx64\\x64\\cl.exe"
+```
+
+This is **not committed** on purpose — the paths are machine-specific (exact
+VS/SDK version differs per install) and, more importantly, Cargo's `[env]`
+table applies globally regardless of target OS, so committing a Windows path
+here would break the build on macOS/Linux. Mac and Linux need no special
+config — `cargo build` just uses the system C compiler (Clang/GCC), no setup
+beyond having Xcode Command Line Tools (`xcode-select --install`) or
+build-essential installed.
+
 ## Module ownership
 
 Everything is committed to `main` directly (single-branch requirement), so

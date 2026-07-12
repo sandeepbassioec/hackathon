@@ -1,5 +1,6 @@
 /backend/target
 /backend/.env
+/backend/.cargo/config.toml
 /frontend/node_modules
 /frontend/dist
 .DS_Store
