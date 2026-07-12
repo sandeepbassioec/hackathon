@@ -54,5 +54,8 @@ export async function apiRequest(path, options = {}) {
     const body = await res.json().catch(() => null);
     throw new Error(body?.error || `Request to ${path} failed with ${res.status}`);
   }
+  if (res.status === 204) {
+    return null;
+  }
   return res.json();
 }
