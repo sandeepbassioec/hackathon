@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import Modal from '../components/Modal';
-import { apiRequest, hasRole } from '../api';
+import { apiRequest } from '../api';
 
 const EMPTY_FUEL_FORM = { vehicle_id: '', liters: '', cost: '', log_date: '' };
 const EMPTY_EXPENSE_FORM = { vehicle_id: '', expense_type: '', amount: '', expense_date: '', description: '' };
 
 export default function FuelExpense() {
-  const canManage = hasRole('financial_analyst');
+  const canManage = true; // any logged-in user can manage
 
   const [fuelLogs, setFuelLogs] = useState([]);
   const [expenses, setExpenses] = useState([]);

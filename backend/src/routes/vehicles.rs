@@ -11,8 +11,6 @@ use crate::auth::AuthUser;
 use crate::error::ApiError;
 use crate::models::vehicle::Vehicle;
 
-const MANAGES_VEHICLES: &[&str] = &["fleet_manager"];
-
 pub fn router() -> Router<PgPool> {
     Router::new().route("/", get(list_vehicles).post(create_vehicle)).route(
         "/:id",
@@ -37,12 +35,10 @@ struct CreateVehicleRequest {
 }
 
 async fn create_vehicle(
-    user: AuthUser,
+    _user: AuthUser,
     State(pool): State<PgPool>,
     Json(req): Json<CreateVehicleRequest>,
 ) -> Result<Json<Vehicle>, ApiError> {
-    user.require_role(MANAGES_VEHICLES)?;
-
     if req.registration_number.trim().is_empty() {
         return Err(ApiError::bad_request("registration_number is required"));
     }
@@ -78,13 +74,11 @@ struct UpdateVehicleRequest {
 const VALID_VEHICLE_STATUSES: &[&str] = &["available", "on_trip", "in_shop", "retired"];
 
 async fn update_vehicle(
-    user: AuthUser,
+    _user: AuthUser,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateVehicleRequest>,
 ) -> Result<Json<Vehicle>, ApiError> {
-    user.require_role(MANAGES_VEHICLES)?;
-
     if let Some(status) = &req.status {
         if !VALID_VEHICLE_STATUSES.contains(&status.as_str()) {
             return Err(ApiError::bad_request(format!(
@@ -118,12 +112,10 @@ async fn update_vehicle(
 }
 
 async fn delete_vehicle(
-    user: AuthUser,
+    _user: AuthUser,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
 ) -> Result<axum::http::StatusCode, ApiError> {
-    user.require_role(MANAGES_VEHICLES)?;
-
     let result = sqlx::query("DELETE FROM vehicles WHERE id = $1").bind(id).execute(&pool).await?;
 
     if result.rows_affected() == 0 {

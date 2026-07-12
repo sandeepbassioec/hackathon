@@ -12,7 +12,6 @@ use crate::auth::AuthUser;
 use crate::error::ApiError;
 use crate::models::driver::Driver;
 
-const MANAGES_DRIVERS: &[&str] = &["fleet_manager"];
 const VALID_DRIVER_STATUSES: &[&str] = &["available", "on_trip", "off_duty", "suspended"];
 
 pub fn router() -> Router<PgPool> {
@@ -40,12 +39,10 @@ struct CreateDriverRequest {
 }
 
 async fn create_driver(
-    user: AuthUser,
+    _user: AuthUser,
     State(pool): State<PgPool>,
     Json(req): Json<CreateDriverRequest>,
 ) -> Result<Json<Driver>, ApiError> {
-    user.require_role(MANAGES_DRIVERS)?;
-
     if req.name.trim().is_empty() {
         return Err(ApiError::bad_request("name is required"));
     }
@@ -81,13 +78,11 @@ struct UpdateDriverRequest {
 }
 
 async fn update_driver(
-    user: AuthUser,
+    _user: AuthUser,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateDriverRequest>,
 ) -> Result<Json<Driver>, ApiError> {
-    user.require_role(MANAGES_DRIVERS)?;
-
     if let Some(status) = &req.status {
         if !VALID_DRIVER_STATUSES.contains(&status.as_str()) {
             return Err(ApiError::bad_request(format!(
@@ -123,12 +118,10 @@ async fn update_driver(
 }
 
 async fn delete_driver(
-    user: AuthUser,
+    _user: AuthUser,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
 ) -> Result<axum::http::StatusCode, ApiError> {
-    user.require_role(MANAGES_DRIVERS)?;
-
     let result = sqlx::query("DELETE FROM drivers WHERE id = $1").bind(id).execute(&pool).await?;
 
     if result.rows_affected() == 0 {

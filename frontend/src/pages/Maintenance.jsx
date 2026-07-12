@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import StatusBadge from '../components/StatusBadge';
 import Modal from '../components/Modal';
-import { apiRequest, hasRole } from '../api';
+import { apiRequest } from '../api';
 
 const EMPTY_FORM = { vehicle_id: '', description: '', cost: '' };
 
 export default function Maintenance() {
-  const canManage = hasRole('fleet_manager', 'driver');
+  const canManage = true; // any logged-in user can manage
 
   const [logs, setLogs] = useState([]);
   const [vehicles, setVehicles] = useState([]);

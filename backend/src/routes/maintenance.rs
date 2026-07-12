@@ -12,7 +12,6 @@ use crate::error::ApiError;
 use crate::models::maintenance::MaintenanceLog;
 use crate::models::vehicle::Vehicle;
 
-const MANAGES_MAINTENANCE: &[&str] = &["fleet_manager", "driver"];
 
 pub fn router() -> Router<PgPool> {
     Router::new()
@@ -36,12 +35,10 @@ struct OpenMaintenanceRequest {
 }
 
 async fn open_maintenance(
-    user: AuthUser,
+    _user: AuthUser,
     State(pool): State<PgPool>,
     Json(req): Json<OpenMaintenanceRequest>,
 ) -> Result<Json<MaintenanceLog>, ApiError> {
-    user.require_role(MANAGES_MAINTENANCE)?;
-
     let vehicle = sqlx::query_as::<_, Vehicle>("SELECT * FROM vehicles WHERE id = $1")
         .bind(req.vehicle_id)
         .fetch_optional(&pool)
@@ -93,13 +90,11 @@ struct UpdateMaintenanceRequest {
 }
 
 async fn update_maintenance(
-    user: AuthUser,
+    _user: AuthUser,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateMaintenanceRequest>,
 ) -> Result<Json<MaintenanceLog>, ApiError> {
-    user.require_role(MANAGES_MAINTENANCE)?;
-
     let log = fetch_maintenance(&pool, id).await?;
     if log.status != "open" {
         return Err(ApiError::conflict("only open maintenance records can be edited"));
@@ -122,12 +117,10 @@ async fn update_maintenance(
 }
 
 async fn delete_maintenance(
-    user: AuthUser,
+    _user: AuthUser,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
 ) -> Result<axum::http::StatusCode, ApiError> {
-    user.require_role(MANAGES_MAINTENANCE)?;
-
     let log = fetch_maintenance(&pool, id).await?;
     if log.status != "open" {
         return Err(ApiError::conflict("only open maintenance records can be deleted"));
@@ -154,12 +147,10 @@ async fn delete_maintenance(
 }
 
 async fn close_maintenance(
-    user: AuthUser,
+    _user: AuthUser,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<MaintenanceLog>, ApiError> {
-    user.require_role(MANAGES_MAINTENANCE)?;
-
     let log = fetch_maintenance(&pool, id).await?;
     if log.status != "open" {
         return Err(ApiError::conflict("maintenance record is not open"));

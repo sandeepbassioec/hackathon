@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import StatusBadge from '../components/StatusBadge';
 import Modal from '../components/Modal';
-import { apiRequest, hasRole } from '../api';
+import { apiRequest } from '../api';
 
 const EMPTY_FORM = {
   name: '',
@@ -13,7 +13,7 @@ const EMPTY_FORM = {
 };
 
 export default function Drivers() {
-  const canManage = hasRole('fleet_manager');
+  const canManage = true; // any logged-in user can manage
 
   const [drivers, setDrivers] = useState([]);
   const [error, setError] = useState('');

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import StatusBadge from '../components/StatusBadge';
 import Modal from '../components/Modal';
-import { apiRequest, hasRole } from '../api';
+import { apiRequest } from '../api';
 
 function lookup(list, id) {
   return list.find((x) => x.id === id);
@@ -17,7 +17,7 @@ const EMPTY_TRIP_FORM = {
 };
 
 export default function Trips() {
-  const canManage = hasRole('fleet_manager', 'driver');
+  const canManage = true; // any logged-in user can manage
 
   const [trips, setTrips] = useState([]);
   const [vehicles, setVehicles] = useState([]);
